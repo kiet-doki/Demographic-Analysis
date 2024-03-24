@@ -8,7 +8,7 @@ output: html_document
 
 # Project Scope:
 
-Academic Deans’ Services (ADS) is an office dedicated to supporting students in achieving their academic goals and navigating their undergraduate journey effectively. Within this project scope, we aim to understand student engagement patterns with academic support services provided by ADS. By analyzing institutional data, we seek to uncover trends and patterns that illuminate the effectiveness of one-on-one advising services offered by ADS. Additionally, we will investigate which demographic groups are being effectively reached by ADS services and identify any potential gaps or areas for improvement in outreach efforts.
+The Academic Deans’ Services (ADS) is an office dedicated to supporting students in achieving their academic goals and navigating their undergraduate journey effectively. Within this project scope, we aim to understand student engagement patterns with academic support services provided by ADS. By analyzing institutional data, we seek to uncover trends and patterns that illuminate the effectiveness of one-on-one advising services offered by ADS. Additionally, we will investigate which demographic groups are being effectively reached by ADS services and identify any potential gaps or areas for improvement in outreach efforts.
 
 
 ```{r}
