@@ -160,7 +160,7 @@ data$contact_year <- as.integer(format(data$CONTACT_DATE, "%Y"))
   scale_y_continuous(limits = c(0,.7), 
                      breaks = c(0,.1,.2,.3,.4,.5,.6,.7),
                      labels = scales::percent) +
-  labs(title = "Gender Trends by First Academic Year",
+  labs(title = "Gender Trends by First Academic Year (Female)",
        subtitle = "Dotted line is L&S entrants in that year.",
        x = "Academic Year",
        y = "%") +
@@ -198,6 +198,33 @@ data |>
   theme_minimal()
 
 
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+
+data |>
+  filter(FirstAcadYear > "2010", ETHNIC_REPORTING_DESCR != "International") |>
+  group_by(FirstAcadYear, TARGETED_MINORITY) |>
+  summarize(n = n_distinct(Random_ID)) |>
+  group_by(FirstAcadYear) |>
+  mutate(prop = n / sum(n)) |>
+  filter(TARGETED_MINORITY == "Y") |>
+  inner_join(comparison.targeted_minority, by = c("FirstAcadYear", "TARGETED_MINORITY")) |>
+  ggplot(aes(x = FirstAcadYear, y = prop, group = TARGETED_MINORITY)) +
+  geom_line() +
+  geom_line(aes(y = `L&S_prop`), linetype = 2) +
+  scale_y_continuous(limits = c(0, 0.3), 
+                     breaks = seq(0, 0.3, 0.05),
+                     labels = scales::percent) +
+  labs(title = "Targeted Minority Trends by First Academic Year",
+       subtitle = "Dotted line is L&S entrants in that year.",
+       x = "Academic Year",
+       y = "%") +
+  theme_minimal()
 ```
 
 ```{r}
@@ -255,84 +282,6 @@ data |>
 
 
 
-```{r}
-#| echo: false
-#| message: false
-#| warning: false
-
-
-data |>
-  filter(FirstAcadYear > "2010", ETHNIC_REPORTING_DESCR != "International") |>
-  group_by(FirstAcadYear, TARGETED_MINORITY) |>
-  summarize(n = n_distinct(Random_ID)) |>
-  group_by(FirstAcadYear) |>
-  mutate(prop = n / sum(n)) |>
-  filter(TARGETED_MINORITY == "Y") |>
-  inner_join(comparison.targeted_minority, by = c("FirstAcadYear", "TARGETED_MINORITY")) |>
-  ggplot(aes(x = FirstAcadYear, y = prop, group = TARGETED_MINORITY)) +
-  geom_line() +
-  geom_line(aes(y = `L&S_prop`), linetype = 2) +
-  scale_y_continuous(limits = c(0, 0.3), 
-                     breaks = seq(0, 0.3, 0.05),
-                     labels = scales::percent) +
-  labs(title = "Targeted Minority Trends by First Academic Year",
-       subtitle = "Dotted line is L&S entrants in that year.",
-       x = "Academic Year",
-       y = "%") +
-  theme_minimal()
-```
-
-```{r}
-#| echo: false
-#| message: false
-#| warning: false
-
-# Ethnicity Breakdown for Minorities
-ethnicity_trends <- data |>
-  filter(FirstAcadYear >= "2010", ETHNIC_REPORTING_DESCR != "International", MINORITY == "Y") |>
-  group_by(FirstAcadYear, ETHNIC_REPORTING_DESCR) |>
-  summarize(n = n_distinct(Random_ID)) |>
-  group_by(FirstAcadYear) |>
-  mutate(prop = n / sum(n)) |>
-  ggplot(aes(x = FirstAcadYear, y = prop, fill = ETHNIC_REPORTING_DESCR)) +
-  geom_bar(stat = "identity", position = "stack") +
-  labs(title = "Ethnicity Breakdown for Minorities by First Academic Year",
-       y = "Proportion",
-       fill = "Ethnicity")
-
-ethnicity_trends
-```
-
-```{r}
-#| echo: false
-#| message: false
-#| warning: false
-
-
-reason_counts <- data |>
-  count(CONTACT_REASON1_NAME) |>
-  arrange(desc(n))
-
-# Identify top 5 reasons
-top_5_reasons <- head(reason_counts, 5)
-
-# Summarize other reasons
-other_reasons <- summarise(reason_counts |> filter(!(CONTACT_REASON1_NAME %in% top_5_reasons$CONTACT_REASON1_NAME)), 
-                           CONTACT_REASON1_NAME = "Others", n = sum(n))
-
-# Combine top 5 reasons and "Others"
-reason_data <- bind_rows(top_5_reasons, other_reasons)
-
-# Plotting
-reason_data |>
-  ggplot(aes(x = "", y = n, fill = CONTACT_REASON1_NAME)) +
-  geom_bar(stat = "identity", width = 1) +
-  coord_polar("y", start = 0) +
-  labs(title = "Top 5 Reasons for Contact",
-       fill = "Reason") +
-  theme_void() +
-  theme(legend.position = "right")
-```
 
 ```{r}
 #| echo: false
@@ -341,13 +290,13 @@ reason_data |>
 
 # Filter data for the last 10 years
 data_last_10_years <- data |>
-  filter(contact_year > 2010)
+  filter(FirstAcadYear > "2010")
 
 # Group data by contact reason and academic year, then count occurrences
 contact_reason_counts <- data_last_10_years |>
-  group_by(contact_year, CONTACT_REASON1_NAME) |>
+  group_by(FirstAcadYear, CONTACT_REASON1_NAME) |>
   summarize(n = n()) |>
-  arrange(contact_year, desc(n))
+  arrange(FirstAcadYear, desc(n))
 
 # Identify the top 5 contact reasons
 top_5_reasons <- contact_reason_counts |>
@@ -361,13 +310,39 @@ top_5_contact_reason_counts <- contact_reason_counts |>
   filter(CONTACT_REASON1_NAME %in% top_5_reasons$CONTACT_REASON1_NAME)
 
 # Plot bar chart for the top 5 contact reasons
-ggplot(top_5_contact_reason_counts, aes(x = factor(contact_year), y = n, fill = CONTACT_REASON1_NAME)) +
+ggplot(top_5_contact_reason_counts, aes(x = factor(FirstAcadYear), y = n, fill = CONTACT_REASON1_NAME)) +
   geom_bar(stat = "identity", position = "stack") +
   labs(title = "Popularity of Top 5 Contact Reasons Over the Last 10 Years",
        x = "Academic Year",
        y = "Number of Occurrences",
        fill = "Contact Reason") +
   theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+library(ggplot2)
+
+# Group data by year and count the number of contacts
+total_contacts <- data %>%
+  filter(CONTACT_TYPE_NAME == "Appointment", contact_year > 2010 & contact_year < 2024) %>%
+  group_by(contact_year) %>%
+  summarise(total_contacts = length(Random_ID))
+
+# Plotting
+ggplot(total_contacts, aes(x = contact_year, y = total_contacts)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Total Number of Contacts Each Year",
+       x = "Year",
+       y = "Total Number of Contacts") +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2011, 2023, by = 1)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
@@ -382,17 +357,21 @@ library(ggplot2)
 
 # Group data by year and count the number of contacts
 total_contacts <- data %>%
-  group_by(contact_year) %>%
-  summarise(total_contacts = length(Random_ID))
+  filter(CONTACT_TYPE_NAME %in% c("Appointment", "Remote Appointment", "E-mail/Mail"), contact_year > 2010 & contact_year < 2024) %>%
+  group_by(contact_year, CONTACT_TYPE_NAME) %>%
+  summarise(total_contacts = n_distinct(Random_ID))
 
 # Plotting
-ggplot(total_contacts, aes(x = contact_year, y = total_contacts)) +
-  geom_line() +
+ggplot(total_contacts, aes(group = CONTACT_TYPE_NAME,x = contact_year, y = total_contacts)) +
+  geom_line(aes(color = CONTACT_TYPE_NAME)) +
   geom_point() +
   labs(title = "Total Number of Contacts Each Year",
        x = "Year",
        y = "Total Number of Contacts") +
-  theme_minimal()
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2011, 2023, by = 1)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 
 ```
 
@@ -460,30 +439,50 @@ ggplot(top_5_contact_reason_counts_by_residency, aes(x = contact_year, y = perce
 #| warning: false
 
 data_last_10_years <- data |>
-  filter(contact_year == c(2020, 2021, 2022))
+  filter(contact_year > 2013)
 
-# Filter data for international students
 international_students <- data_last_10_years |>
   filter(Residency_Status == "International")
 
-# Group data by contact reason for international students and count occurrences
 contact_reason_counts_international <- international_students |>
   group_by(CONTACT_REASON1_NAME) |>
   summarize(n = n()) |>
   arrange(desc(n))
 
-# Plot bar chart for contact reasons of international students
-ggplot(contact_reason_counts_international, aes(x = reorder(CONTACT_REASON1_NAME, n), y = n)) +
+ggplot(head(contact_reason_counts_international, 10), aes(x = reorder(CONTACT_REASON1_NAME, n), y = n)) +
   geom_bar(stat = "identity") +
   labs(title = "Contact Reasons of International Students",
-       subtitle = "During 2020, 2021, 2022 school years",
+       subtitle = "Last 10 Calendar years",
        x = "Contact Reason",
        y = "Number of Occurrences") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
-        plot.title = element_text(hjust = 0.5))
+        plot.title = element_text(hjust = 0.5)) +
+  geom_text(aes(label = n), nudge_y = 150)
 
 ```
 
+```{r}
+unitspec_contact_data <- data_last_10_years %>%
+  filter(!is.na(UNITSPEC_CONTACT_REASON1_NAME))
+
+unitspec_contact_reason_counts <- unitspec_contact_data %>%
+  group_by(UNITSPEC_CONTACT_REASON1_NAME) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n))
+
+top_10_unitspec_reasons <- head(unitspec_contact_reason_counts, 10)
+
+ggplot(top_10_unitspec_reasons, aes(x = reorder(UNITSPEC_CONTACT_REASON1_NAME, n), y = n)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Top 10 UnitSpec Contact Reasons",
+       subtitle = "During the last 10 years",
+       x = "UnitSpec Contact Reason",
+       y = "Number of Occurrences") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        plot.title = element_text(hjust = 0.5)) +
+  geom_text(aes(label = n), nudge_y = 10)
+
+```
 
 ```{r}
 #| echo: false
