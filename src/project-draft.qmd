@@ -1,0 +1,617 @@
+---
+title: "Demographic Analysis"
+author: "Kiet Do"
+date: today
+output: html_document
+toc: TRUE
+---
+
+
+## Project Scope
+
+Academic Deans’ Services (ADS) is an office dedicated to supporting students in achieving their academic goals and navigating their undergraduate journey effectively. Within this project scope, we aim to understand student engagement patterns with academic support services provided by ADS. By analyzing institutional data, we seek to uncover trends and patterns that illuminate the effectiveness of one-on-one advising services offered by ADS. Additionally, we will investigate which demographic groups are being effectively reached by ADS services and identify any potential gaps or areas for improvement in outreach efforts.
+
+
+```{r}
+#| label: setup
+#| echo: false
+#| message: false
+#| warning: false
+
+knitr::opts_chunk$set(echo = TRUE)
+
+
+
+acad.year <- function(Term, TermType){
+  Data <- data.frame(Term, stringsAsFactors = FALSE)
+
+  if(TermType == "SIS"){
+    Data$cent <- substr(Data$Term, 1, 1)
+    Data$year <- substr(Data$Term, 2, 3)
+    Data$semester <- substr(Data$Term, 4, 4)
+
+    if (length(Data[which(Data$cent == "0"),]$cent) > 0)
+      {Data[which(Data$cent == "0"),]$cent <- "19"}
+    if (length(Data[which(Data$cent == "1"),]$cent) > 0)
+      {Data[which(Data$cent == "1"),]$cent <- "20"}
+    Data$acadYear <- paste(Data$cent, Data$year, sep = "")
+    if (length(Data[which(Data$semester == "6"),]$cent) > 0)
+      {Data[which(Data$semester == "6"),]$acadYear <- as.integer(Data[which(Data$semester == "6"),]$acadYear) + 1}
+
+  }
+  if(TermType == "DARS"){
+    Data$acadYear <- substr(Data$Term, 1, 4)
+    Data$semester <- substr(Data$Term, 5, 5)
+    if (length(Data[which(Data$semester == "3"),]$semester) > 0)
+      {Data[which(Data$semester == "3"),]$acadYear <- as.integer(Data[which(Data$semester == "3"),]$acadYear) + 1}
+
+  }
+
+  return(Data$acadYear)
+
+}
+
+```
+
+
+
+
+```{r }
+#| label: data-exploration
+#| echo: false
+#| message: false
+#| warning: false
+
+
+library(readxl)
+library(tidyverse)
+
+data <- read_excel("Random_ADS_Advisor_Notes.xlsx")
+comparison.data <- read_excel("L&S_COMP.xlsx")
+
+
+comparison.data <- comparison.data |>
+        filter(TERM > 1136) |>
+        mutate(AcadYear = acad.year(TERM, "SIS"))
+
+
+comparison.gender  <- comparison.data |>
+          group_by(AcadYear, GENDER) |>
+          summarize(n = sum(N)) |>
+          ungroup() |>
+          group_by(AcadYear) |>
+          mutate(`L&S_prop` = n/sum(n)) |>
+          select(-n) |>
+          rename(FirstAcadYear = AcadYear)
+
+comparison.minority <- comparison.data |>
+          group_by(AcadYear, MINORITY) |>
+          summarize(n = sum(N)) |>
+          ungroup() |>
+          group_by(AcadYear) |>
+          mutate(`L&S_prop` = n / sum(n)) |>
+          select(-n) |>
+          rename(FirstAcadYear = AcadYear)
+
+comparison.residency <- comparison.data |>
+         mutate(Residency_Status = case_when(
+    RACE == "International" ~ "International",
+    TUITION_RESIDENCY == "N" ~ "Out of State",
+    TUITION_RESIDENCY == "R" ~ "WI resident",
+    TUITION_RESIDENCY == "S" ~ "MN compact"
+  )) |>
+        group_by(AcadYear, Residency_Status) |>
+        summarize(n = sum(N)) |>
+        ungroup() |>
+        group_by(AcadYear) |>
+        mutate(`L&S_prop` = n / sum(n)) |>
+        select(-n) |>
+        rename(FirstAcadYear = AcadYear)
+
+comparison.targeted_minority <- comparison.data |>
+        group_by(AcadYear, TARGETED_MINORITY) |>
+        summarize(n = sum(N)) |>
+        ungroup() |>
+        group_by(AcadYear) |>
+        mutate(`L&S_prop` = n / sum(n)) |>
+        select(-n) |>
+        rename(FirstAcadYear = AcadYear)
+
+data <- data |>
+      replace_na(list(MINORITY = "N", 
+                      TARGETED_MINORITY = "N")) |>
+    mutate(FirstAcadYear = acad.year(FIRST_SEMESTER_ENROLLED,
+                                "SIS"))
+
+
+data <- data |>
+  mutate(Residency_Status = case_when(
+    ETHNIC_REPORTING_CODE == 10 ~ "International",
+    TUITION_RESIDENCY_AT_ENTRANCE == "N" ~ "Out of State",
+    TUITION_RESIDENCY_AT_ENTRANCE == "R" ~ "WI resident",
+    TUITION_RESIDENCY_AT_ENTRANCE == "S" ~ "MN compact"
+  ))
+
+
+data$CONTACT_DATE <- as.Date(data$CONTACT_DATE)
+data$contact_year <- as.integer(format(data$CONTACT_DATE, "%Y"))
+
+```
+
+
+## Demographics
+
+### Usage Trends
+
+Something... see @fig-gender-trends
+
+```{r}
+#| label: fig-gender-trends
+#| fig-cap: Gender trends ...
+#| echo: false
+#| message: false
+#| warning: false
+
+#label: tab-name
+#tab-cap: somethign...
+
+# Gender Trends
+ data |>
+  filter(GENDER != "U", FirstAcadYear > 2010) |>
+  group_by(FirstAcadYear, GENDER) |>
+  summarize(n = n_distinct(Random_ID)) |>
+  group_by(FirstAcadYear) |>
+  mutate(prop = n / sum(n)) |>
+  filter(GENDER == "F") |>
+  inner_join(comparison.gender, by = c("FirstAcadYear", "GENDER")) |>
+  ggplot(aes(x = FirstAcadYear, y = prop, group = GENDER)) +
+  geom_line() +
+  geom_line(aes(y = `L&S_prop`), linetype = 2) + 
+  scale_y_continuous(limits = c(0,.7), 
+                     breaks = c(0,.1,.2,.3,.4,.5,.6,.7),
+                     labels = scales::percent) +
+  labs(title = "Gender Trends by First Academic Year (Female)",
+       subtitle = "Dotted line is L&S entrants in that year.",
+       x = "Academic Year",
+       y = "%") +
+   theme_minimal()
+
+
+```
+Gender ratio has been stable for the last 10 years. The stability of the gender ratio is a positive indication of equal access to ADS services
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+
+# Minority Trends
+data |>
+  filter(FirstAcadYear > "2010", ETHNIC_REPORTING_DESCR != "International") |>
+  group_by(FirstAcadYear, MINORITY) |>
+  summarize(n = n_distinct(Random_ID)) |>
+  group_by(FirstAcadYear) |>
+  mutate(prop = n / sum(n)) |>
+  filter(MINORITY == "Y") |>
+  inner_join(comparison.minority, by = c("FirstAcadYear", "MINORITY")) |>
+  ggplot(aes(x = FirstAcadYear, y = prop, group = MINORITY)) +
+  geom_line() +
+  geom_line(aes(y = `L&S_prop`), linetype = 2) +
+  scale_y_continuous(limits = c(0, 0.5), 
+                     breaks = seq(0, 0.5, 0.05),
+                     labels = scales::percent) +
+  labs(title = "Minority Trends by First Academic Year",
+       subtitle = "Dotted line is L&S entrants in that year.",
+       x = "Academic Year",
+       y = "%") +
+  theme_minimal()
+
+
+```
+
+The ratio of ADS serving minority students exceeds that of the overall population within the College of Letters & Science by approximately 10-15%. This suggests that ADS service is valuable and accessible to minority students.
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+
+data |>
+  filter(FirstAcadYear > "2010", ETHNIC_REPORTING_DESCR != "International") |>
+  group_by(FirstAcadYear, TARGETED_MINORITY) |>
+  summarize(n = n_distinct(Random_ID)) |>
+  group_by(FirstAcadYear) |>
+  mutate(prop = n / sum(n)) |>
+  filter(TARGETED_MINORITY == "Y") |>
+  inner_join(comparison.targeted_minority, by = c("FirstAcadYear", "TARGETED_MINORITY")) |>
+  ggplot(aes(x = FirstAcadYear, y = prop, group = TARGETED_MINORITY)) +
+  geom_line() +
+  geom_line(aes(y = `L&S_prop`), linetype = 2) +
+  scale_y_continuous(limits = c(0, 0.3), 
+                     breaks = seq(0, 0.3, 0.05),
+                     labels = scales::percent) +
+  labs(title = "Targeted Minority Trends by First Academic Year",
+       subtitle = "Dotted line is L&S entrants in that year.",
+       x = "Academic Year",
+       y = "%") +
+  theme_minimal()
+```
+
+Minorities include targeted minorities as well as Other Asians and Native Hawaiians. Thus, it is expected to see the trend in targeted minorities similar to that of minorities.
+
+
+### Usage Residency Distribution
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+
+# Residency Trends
+residency_trends <- data |>
+  filter(FirstAcadYear > "2010") |>
+  group_by(FirstAcadYear, Residency_Status) |>
+  summarize(n = n_distinct(Random_ID)) |>
+  group_by(FirstAcadYear) |>
+  mutate(prop = n / sum(n)) |>
+  ggplot(aes(x = FirstAcadYear, y = prop, fill = Residency_Status)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(title = "Residency Trends by First Academic Year",
+       y = "Proportion",
+       fill = "Residency")
+
+residency_trends
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+
+# Residency Trends
+data |>
+  filter(FirstAcadYear > "2010") |>
+  group_by(FirstAcadYear, Residency_Status) |>
+  summarize(n = n_distinct(Random_ID)) |>
+  group_by(FirstAcadYear) |>
+  mutate(ADS_prop = n / sum(n)) |>
+  #filter(Residency_Status == "International") |>
+  inner_join(comparison.residency, by = c("FirstAcadYear" , "Residency_Status" )) |>
+  select(-n) |>
+  pivot_longer(cols = c("ADS_prop", "L&S_prop"), names_to = "Group", values_to = "ADS_prop") |>
+  
+  ggplot(aes(x = FirstAcadYear, y = ADS_prop, group = Group)) +
+  geom_line(aes(y = ADS_prop, linetype = Group)) +
+  #scale_y_continuous(limits = c(0, 0.5), 
+  #                   breaks = seq(0, 0.5, 0.05),
+   #                  labels = scales::percent) +
+  facet_wrap(~ Residency_Status) +
+  labs(title = "Residency Trends by First Academic Year",
+       x = "Academic Year",
+       y = "%") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+
+## Contact Types
+
+### Historical Trends
+
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+library(ggplot2)
+
+total_contacts <- data %>%
+  filter(CONTACT_TYPE_NAME %in% c("Appointment", "Remote Appointment", "E-mail/Mail"), contact_year > 2010 & contact_year < 2024) %>%
+  group_by(contact_year, CONTACT_TYPE_NAME) %>%
+  summarise(total_contacts = n_distinct(Random_ID))
+
+ggplot(total_contacts, aes(group = CONTACT_TYPE_NAME,x = contact_year, y = total_contacts)) +
+  geom_line(aes(color = CONTACT_TYPE_NAME)) +
+  geom_point() +
+  labs(title = "Total Number of Contacts Each Year",
+       x = "Year",
+       y = "Total Number of Contacts") +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2011, 2023, by = 1)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+### Demographic Distribution
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+data_last_10_years <- data |>
+  filter(contact_year > 2013)
+
+international_students <- data_last_10_years |>
+  filter(Residency_Status == "International")
+
+contact_reason_counts_international <- international_students |>
+  group_by(CONTACT_REASON1_NAME) |>
+  summarize(n = n()) |>
+  arrange(desc(n))
+
+ggplot(head(contact_reason_counts_international, 10), aes(x = reorder(CONTACT_REASON1_NAME, n), y = n)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Contact Reasons of International Students",
+       subtitle = "Last 10 Calendar years",
+       x = "Contact Reason",
+       y = "Number of Occurrences") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        plot.title = element_text(hjust = 0.5)) +
+  geom_text(aes(label = n), nudge_y = 150)
+
+```
+
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+data_last_10_years <- data |>
+  filter(contact_year > 2013)
+
+international_students <- data_last_10_years |>
+  filter(Residency_Status == "WI resident")
+
+contact_reason_counts_international <- international_students |>
+  group_by(CONTACT_REASON1_NAME) |>
+  summarize(n = n()) |>
+  arrange(desc(n))
+
+ggplot(head(contact_reason_counts_international,10) , aes(x = reorder(CONTACT_REASON1_NAME, n), y = n)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Contact Reasons of WI resident Students",
+       subtitle = "During the last 10 years",
+       x = "Contact Reason",
+       y = "Number of Occurrences") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        plot.title = element_text(hjust = 0.5)) +
+  geom_text(aes(label = n), nudge_y = 150)
+
+
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+data_last_10_years <- data |>
+  filter(contact_year > 2013)
+
+international_students <- data_last_10_years |>
+  filter(Residency_Status == "Out of State")
+
+contact_reason_counts_international <- international_students |>
+  group_by(CONTACT_REASON1_NAME) |>
+  summarize(n = n()) |>
+  arrange(desc(n))
+
+ggplot(head(contact_reason_counts_international, 10), aes(x = reorder(CONTACT_REASON1_NAME, n), y = n)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Contact Reasons of Out of State Students",
+       subtitle = "During the last 10 years",
+       x = "Contact Reason",
+       y = "Number of Occurrences") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        plot.title = element_text(hjust = 0.5)) +
+  geom_text(aes(label = n), nudge_y = 150)
+
+
+```
+
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+data_last_10_years <- data |>
+  filter(contact_year > 2013)
+
+international_students <- data_last_10_years |>
+  filter(Residency_Status == "MN compact")
+
+contact_reason_counts_international <- international_students |>
+  group_by(CONTACT_REASON1_NAME) |>
+  summarize(n = n()) |>
+  arrange(desc(n))
+
+ggplot(head(contact_reason_counts_international, 10), aes(x = reorder(CONTACT_REASON1_NAME, n), y = n)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Contact Reasons of MN Compact Students",
+       subtitle = "During the last 10 years",
+       x = "Contact Reason",
+       y = "Number of Occurrences") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        plot.title = element_text(hjust = 0.5)) +
+  geom_text(aes(label = n), nudge_y = 40)
+
+
+```
+
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+data_last_10_years <- data |>
+  filter(contact_year >= 2012 & contact_year <= 2023)
+
+contact_reason_counts_by_residency <- data_last_10_years |>
+  filter(Residency_Status != "N/A") |>
+  group_by(Residency_Status, CONTACT_REASON1_NAME, contact_year) |>
+  summarize(n = n()) |>
+  arrange(Residency_Status, contact_year, desc(n))
+
+contact_reason_counts_by_residency$contact_year <- as.integer(contact_reason_counts_by_residency$contact_year)
+
+top_5_reasons_by_residency <- contact_reason_counts_by_residency |>
+  group_by(Residency_Status, CONTACT_REASON1_NAME) |>
+  summarize(total_occurrences = sum(n)) |>
+  top_n(5, total_occurrences) |>
+  select(Residency_Status, CONTACT_REASON1_NAME)
+
+total_counts <- contact_reason_counts_by_residency |>
+  group_by(Residency_Status, contact_year) |>
+  summarize(total_occurrences = sum(n))
+
+contact_reason_counts_by_residency <- contact_reason_counts_by_residency |>
+  left_join(total_counts, by = c("Residency_Status", "contact_year"))
+
+contact_reason_counts_by_residency <- contact_reason_counts_by_residency |>
+  mutate(percentage = (n / total_occurrences) * 100)
+
+top_5_contact_reason_counts_by_residency <- contact_reason_counts_by_residency |>
+  filter(CONTACT_REASON1_NAME %in% top_5_reasons_by_residency$CONTACT_REASON1_NAME)
+
+ggplot(top_5_contact_reason_counts_by_residency, aes(x = contact_year, y = percentage, fill = CONTACT_REASON1_NAME)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(title = "Top 5 Contact Reasons by Residency Group Over the Last 10 Years",
+       x = "Contact Year",
+       y = "Percentage of Total Occurrences",
+       fill = "Contact Reason") +
+  facet_wrap(~ Residency_Status, scales = "free_y") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+### Unit-specific 
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+unitspec_contact_data <- data_last_10_years |>
+  filter(!is.na(UNITSPEC_CONTACT_REASON1_NAME)) 
+
+unitspec_contact_reason_counts <- unitspec_contact_data |>
+  group_by(UNITSPEC_CONTACT_REASON1_NAME) |>
+  summarize(n = n()) |>
+  arrange(desc(n))
+
+top_10_unitspec_reasons <- head(unitspec_contact_reason_counts, 10)
+
+ggplot(top_10_unitspec_reasons, aes(x = reorder(UNITSPEC_CONTACT_REASON1_NAME, n), y = n)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Top 10 Unit-specific Contact Reasons",
+       subtitle = "During the last 10 years",
+       x = "UnitSpec Contact Reason",
+       y = "Number of Occurrences") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        plot.title = element_text(hjust = 0.5)) +
+  geom_text(aes(label = n), nudge_y = 100)
+
+```
+
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+unitspec_contact_data <- data_last_10_years |>
+  filter(!is.na(UNITSPEC_CONTACT_REASON1_NAME)) |>
+  filter(contact_year > 2020)
+
+unitspec_contact_reason_counts <- unitspec_contact_data |>
+  group_by(UNITSPEC_CONTACT_REASON1_NAME) |>
+  summarize(n = n()) |>
+  arrange(desc(n))
+
+top_10_unitspec_reasons <- head(unitspec_contact_reason_counts, 10)
+
+ggplot(top_10_unitspec_reasons, aes(x = reorder(UNITSPEC_CONTACT_REASON1_NAME, n), y = n)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Top 10 Unit-specific Contact Reasons 1",
+       subtitle = "During the last 3 years",
+       x = "UnitSpec Contact Reason",
+       y = "Number of Occurrences") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        plot.title = element_text(hjust = 0.5)) +
+  geom_text(aes(label = n), nudge_y = 100)
+
+```
+
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+# unitspec_contact_data <- data_last_10_years |>
+#   filter(!is.na(UNITSPEC_CONTACT_REASON2_NAME)) |>
+#   filter(contact_year > 2020)
+# 
+# unitspec_contact_reason_counts <- unitspec_contact_data |>
+#   group_by(UNITSPEC_CONTACT_REASON2_NAME) |>
+#   summarize(n = n()) |>
+#   arrange(desc(n))
+# 
+# top_10_unitspec_reasons <- head(unitspec_contact_reason_counts, 10)
+# 
+# ggplot(top_10_unitspec_reasons, aes(x = reorder(UNITSPEC_CONTACT_REASON2_NAME, n), y = n)) +
+#   geom_bar(stat = "identity") +
+#   labs(title = "Top 10 Unit-specific Contact Reasons",
+#        subtitle = "During the last 3 years",
+#        x = "UnitSpec Contact Reason",
+#        y = "Number of Occurrences") +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+#         plot.title = element_text(hjust = 0.5)) +
+#   geom_text(aes(label = n), nudge_y = 20)
+
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+library(ggplot2)
+
+total_contacts <- data |>
+  filter(UNITSPEC_CONTACT_REASON1_NAME %in% c("Credit Load", "Late Drop"), 
+         contact_year > 2010 & contact_year < 2024) |>
+  group_by(contact_year, UNITSPEC_CONTACT_REASON1_NAME) |>
+  summarise(total_contacts = length(Random_ID))
+
+# Plotting
+ggplot(total_contacts, aes(group = UNITSPEC_CONTACT_REASON1_NAME, 
+                           x = contact_year, y = total_contacts)) +
+  geom_line(aes(color = UNITSPEC_CONTACT_REASON1_NAME)) +
+  geom_point() +
+  labs(title = "Total Number of Contacts each Reason",
+       subtitle = "For the last 10 years",
+       x = "Year",
+       y = "Total Number of Contacts") +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(2011, 2023, by = 1)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+## Appendix
+
+Targeted Minorities include Black/African American, Native American, Hispanic/Latino/a, Southeast Asian (Cambodians, Laotians, Vietnamese, and Hmong). Minorities include targeted minorities as well as Other Asians and Native Hawaiians. International students are not counted for targeted minority/minority calculations. 
